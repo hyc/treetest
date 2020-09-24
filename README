@@ -5,3 +5,7 @@ Testing:
 /usr/bin/time -v slogkbt < slog.dat
 
 klib from https://github.com/attractivechaos/klib
+
+Note: should also play with the BTSIZE param, 1024 seems faster than
+the default 512 with a decent memory savings too. Larger sizes save
+a bit more memory but run slower.
