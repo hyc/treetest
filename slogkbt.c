@@ -73,7 +73,7 @@ slap_parse_csn_sid( struct berval *csnp )
 	return i;
 }
 
-KBTREE_INIT(str, slog_entry*, sessionlog_cmp)
+KBTREE_INIT(slog, slog_entry*, sessionlog_cmp)
 
 #ifndef BTSIZE
 #define	BTSIZE	KB_DEFAULT_SIZE
@@ -81,14 +81,15 @@ KBTREE_INIT(str, slog_entry*, sessionlog_cmp)
 
 int main() {
 	char inbuf[80];
-	kbtree_t(str) *b;
+	kbtree_t(slog) *b;
 	int rc, num=0, size=1000000;
 	slog_entry *se;
 	struct berval bv;
 
 	bv.bv_val = inbuf;
-	b = kb_init(str, BTSIZE);
+	b = kb_init(slog, BTSIZE);
 
+	/* test inserts, expiration */
 	while (fgets(inbuf, sizeof(inbuf), stdin)) {
 		bv.bv_len = strlen(inbuf);
 		se = malloc( sizeof(slog_entry) + bv.bv_len );
@@ -100,20 +101,59 @@ int main() {
 		se->se_csn.bv_len = bv.bv_len-1;
 		se->se_csn.bv_val[se->se_csn.bv_len] = '\0';
 		se->se_sid = slap_parse_csn_sid( &se->se_csn );
-		kb_putp(str, b, (const slog_entry **)&se);
+		kb_putp(slog, b, (const slog_entry **)&se);
 		assert(1);
 		num++;
 		if (num > size) {
 			kbitr_t itr;
-			kb_itr_first(str, b, &itr);
+			kb_itr_first(slog, b, &itr);
 			while (num > size) {
 				int i;
-				se = (slog_entry *)kb_itr_key(slog_entry *, &itr);
-				kb_itr_next(str, b, &itr);
-				kb_delp(str, b, (const slog_entry **)&se);
+				se = kb_itr_key(slog_entry*, &itr);
+				kb_itr_next(slog, b, &itr);
+				kb_delp(slog, b, (const slog_entry **)&se);
 				free(se);
 				num--;
 			}
 		}
 	}
+
+#if 0
+	/* test approximate search */
+	{
+		char *vals[] = {
+			"20200924041137.412289Z#000000#004#000000",
+			"20200924041137.415761Z#000000#004#000000",
+			"20200924041137.415761Z#000001#004#000000",
+			"20200924041137.417213Z#000000#004#000000",
+			NULL };
+		slog_entry **lo, **hi, te = {0};
+		kbitr_t itr;
+		int i;
+
+		te.se_csn.bv_val = vals[2];
+		te.se_csn.bv_len = strlen(vals[2]);
+
+		kb_itr_first(slog, b, &itr );
+		se = kb_itr_key(slog_entry *, &itr);
+
+		se = &te;
+		kb_itr_get(slog, b, (const slog_entry **)&se, &itr );
+		i = 0;
+		do {
+			kb_itr_next(slog, b, &itr);
+			se = kb_itr_key(slog_entry *, &itr);
+			i++;
+		} while( strcmp( se->se_csn.bv_val, vals[1] ));
+
+		kb_interval(slog, b, &te, &lo, &hi );
+		if ( lo )
+			kb_itr_get(slog, b, (const slog_entry **)lo, &itr );
+		else
+			kb_itr_first(slog, b, &itr );
+		se = kb_itr_key(slog_entry *, &itr);
+		kb_itr_next(slog, b, &itr);
+		se = kb_itr_key(slog_entry*, &itr);
+	}
+#endif
 }
