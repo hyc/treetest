@@ -1,0 +1,5 @@
+Testing:
+
+/usr/bin/time -v slogavl < slog.dat
+
+/usr/bin/time -v slogkbt < slog.dat
